@@ -7,8 +7,8 @@ import optirx_utils
 
 DEFAULT_NOTE_DURATION_PRECISION = 0.125
 # rh roll implemented for future use
-DEFAULT_OPTITRACK_RANGES_DICT = {'x': (-1.5, 1.3), 'y': (0.0, 2.0), 'z': (-1.5, 1.7), 'rh_roll': (-180, 180)}
-DEFAULT_RTSCS_PARAM_RANGES_DICT = {'frequency': (0, 600), 'sins': (0, 0.5),
+DEFAULT_OPTITRACK_RANGES_DICT = {'x': (-2, 1.8), 'y': (0.0, 3.0), 'z': (-1.9, 2), 'rh_roll': (-180, 180)}
+DEFAULT_RTSCS_PARAM_RANGES_DICT = {'frequency': (0, 700), 'sins': (0, 0.45),
                                    'amplitude': (0.1, 1), 'numerical_hint': (0, 1)}
 
 
@@ -94,6 +94,29 @@ class OptitrackParamReceiver(BaseRtscsParamReceiver):
 
         # round amplitude factor to precision
         transformed_params[2] = round_to_precision(transformed_params[2], DEFAULT_NOTE_DURATION_PRECISION)
+
+        return transformed_params
+
+    def get_rtscs_params_body(self, rh):
+        """
+        Get input from the OptiTrack system streaming engine, transform the data to rtscs_params and return it.
+        """
+        if rh is None or rh.mrk_mean_error == 0:
+            return 0, 0, 1, 0, False
+
+        # mul by -1 to fix flipped coordinates if not fully compatible Motive calibration square
+        rh_position = list(rh.position)  # map(lambda coordinate: -1 * coordinate, rh.position)
+        # Convert right hand convention to left hand convention for Motive 1.73+ used with CS-200
+        rh_position[0] = -rh_position[0]
+        # For convenience convert roll angle from radians to degrees
+        rh_roll = math.degrees(optirx_utils.orientation2radians(rh.orientation)[0])
+
+        # print rh_position
+        # print rh_roll; return
+
+        transformed_params = self.transform_params(rh_position, rh_roll)
+
+        # print transformed_params
 
         return transformed_params
 

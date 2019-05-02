@@ -2,6 +2,7 @@ import threading
 import time
 from rtscs_controllers.base_rtscs_controller import BaseRtscsController
 from pyo_handler import PyoHandler
+import optirx_utils
 
 
 class SequentialRtscsController(BaseRtscsController):
@@ -22,10 +23,15 @@ class SequentialRtscsController(BaseRtscsController):
         a = PyoHandler()
         while not self._is_shutdown_requested():
             # get rtscs params form BaseRtscsParamReceiver
-            transposition, vel_shift, tempo_factor, hint, is_sustain = self._param_receiver.get_rtscs_params()
-            PyoHandler.change_pyo(a, transposition, vel_shift, tempo_factor)
+            packet = self._param_receiver._optirx_packet_receiver.get_last_packet()
+            bodies = optirx_utils.get_all_rigid_bodies(packet)
+            idx = 0
+            for body in bodies:
+                transposition, vel_shift, tempo_factor, hint, is_sustain = self._param_receiver.get_rtscs_params_body(body)
+                PyoHandler.change_pyo(a, idx, transposition, vel_shift, tempo_factor)
+                idx += 1
             # sleep for duration of msg.time between msgs
-            time.sleep(0.05)
+            time.sleep(0.01)
 
 
 

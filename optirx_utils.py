@@ -14,6 +14,12 @@ def get_first_rigid_body(optirx_packet):
     return None
 
 
+def get_all_rigid_bodies(optirx_packet):
+    if type(optirx_packet) is rx.FrameOfData and len(optirx_packet.rigid_bodies) > 0:
+        return optirx_packet.rigid_bodies
+    return None
+
+
 def get_rigid_body_by_id(id, optirx_packet):
     if type(optirx_packet) is rx.FrameOfData and len(optirx_packet.rigid_bodies) > 0:
         for body in optirx_packet.rigid_bodies:
