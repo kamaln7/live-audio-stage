@@ -7,9 +7,9 @@ import optirx_utils
 
 DEFAULT_NOTE_DURATION_PRECISION = 0.125
 # rh roll implemented for future use
-DEFAULT_OPTITRACK_RANGES_DICT = {'x': (-3, 3), 'y': (1, 1.9), 'z': (-1, 1.7), 'rh_roll': (-80, 100)}
-DEFAULT_RTSCS_PARAM_RANGES_DICT = {'frequency': (0, 1000), 'sins': (0, 0.5),
-                                   'amplitude': (0, 1), 'numerical_hint': (0, 1)}
+DEFAULT_OPTITRACK_RANGES_DICT = {'x': (-1.5, 1.3), 'y': (0.0, 2.0), 'z': (-1.5, 1.7), 'rh_roll': (-180, 180)}
+DEFAULT_RTSCS_PARAM_RANGES_DICT = {'frequency': (0, 600), 'sins': (0, 0.5),
+                                   'amplitude': (0.1, 1), 'numerical_hint': (0, 1)}
 
 
 class OptitrackParamReceiver(BaseRtscsParamReceiver):

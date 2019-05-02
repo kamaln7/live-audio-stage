@@ -12,10 +12,12 @@ class PyoHandler:
         self.s = pyo.Server(sr=48000, nchnls=2, buffersize=512, duplex=0, winhost="asio").boot()
         self.s.start()
         # each synth is a sin sound wave
-        self.synth = pyo.Sine(.4, mul=0.5, add=0.5)
-        self.synth2 = pyo.Sine(.4, mul=0.5, add=0.5).out(2)
-        self.synth3 = pyo.Sine(.4, mul=0.5, add=0.5).out(3)
-        self.synth4 = pyo.Sine(.4, mul=0.5, add=0.5).out(4)
+        #self.synth = pyo.SuperSaw()
+        self.synth = pyo.Sine()
+        self.synth2 = pyo.Sine(.2, mul=0.5, add=0.5).out(2)
+        self.synth3 = pyo.Sine(.2, mul=0.5, add=0.5).out(3)
+        #self.synth4 = pyo.Sine(.2, mul=0.5, add=0.5).out(4)
+        self.synth4 = pyo.SuperSaw()
 
     def change_pyo(self, fr, bal, mul):
         # change the pyo parameters:
@@ -27,7 +29,7 @@ class PyoHandler:
         self.synth.setFreq(fr)
         self.synth.setMul(mul)
         # adding more sin waves for the Y axis
-        self.synth2.setFreq(fr * 5 / 3)
+        self.synth2.setFreq(fr * 15 / 3)
         self.synth3.setFreq(fr * 1.25)
         self.synth4.setFreq(fr * 7 / 2)
         # changing the amplitude of the waves according to position in Y axis
