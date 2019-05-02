@@ -30,6 +30,7 @@ class SequentialRtscsController(BaseRtscsController):
                 transposition, vel_shift, tempo_factor, hint, is_sustain = self._param_receiver.get_rtscs_params_body(body)
                 PyoHandler.change_pyo(a, idx, transposition, vel_shift, tempo_factor)
                 idx += 1
+
             # sleep for duration of msg.time between msgs
             time.sleep(0.01)
 
