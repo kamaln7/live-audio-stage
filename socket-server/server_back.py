@@ -1,10 +1,34 @@
-import optirx as rx
-import optirx_utils
+import threading
+
 import eventlet
 import socketio
+import time
+eventlet.monkey_patch()
+
+from rtscs_param_receivers.optitrack_param_receiver.optitrack_packet_receiver import OptitrackPacketReceiver
+import optirx_utils
 
 from utils import clip_value, remap_range, round_to_precision
 import math
+
+#eventlet.monkey_patch()
+
+DEFAULT_NOTE_DURATION_PRECISION = 0.125
+# rh roll implemented for future use
+DEFAULT_OPTITRACK_RANGES_DICT = {
+    'x': (-0.9, 1.5),
+    'y': (-2.1, 1.2),
+    'z': (-0.1, 2),
+    'rh_roll': (-180, 180)
+}
+DEFAULT_RTSCS_PARAM_RANGES_DICT = {
+    #'frequency': (0, 700),
+    #'sins': (0, 0.45),
+    'frequency': (0, 7),
+    'sins': (0, 7),
+    'amplitude': (0.1, 1),
+    'numerical_hint': (0, 1)
+}
 
 sio = socketio.Server(cors_allowed_origins=None)
 app = socketio.WSGIApp(sio)
@@ -27,22 +51,7 @@ def disconnect(sid):
 def start_sio():
     eventlet.wsgi.server(eventlet.listen(('', 5000)), app)
 
-DEFAULT_NOTE_DURATION_PRECISION = 0.125
-# rh roll implemented for future use
-DEFAULT_OPTITRACK_RANGES_DICT = {
-    'x': (-0.9, 1.5),
-    'y': (-2.1, 1.2),
-    'z': (-0.1, 2),
-    'rh_roll': (-180, 180)
-}
-DEFAULT_RTSCS_PARAM_RANGES_DICT = {
-    #'frequency': (0, 700),
-    #'sins': (0, 0.45),
-    'frequency': (0, 7),
-    'sins': (0, 7),
-    'amplitude': (0.1, 1),
-    'numerical_hint': (0, 1)
-}
+
 def transform_params(rh_position, rh_roll, lh_position=None):
     """
     Transforms OptiTrack params into rtscs params
@@ -97,24 +106,39 @@ def get_rtscs_params_body(rh):
     # For convenience convert roll angle from radians to degrees
     rh_roll = math.degrees(optirx_utils.orientation2radians(rh.orientation)[0])
 
+    # print rh_position
+    # print rh_roll; return
+
     return transform_params(rh_position, rh_roll)
 
-def get_optirx_data():
-    dsock = rx.mkdatasock(ip_address="127.0.0.1", multicast_address='239.255.42.99', port=1511)
-    natnetsdk_version = (2, 8, 0, 0)
+
+optritrack_packet_recv = OptitrackPacketReceiver('127.0.0.1')  # adjust OptiTrack server IP if needed
+optritrack_packet_recv.start()
+
+
+def motive_data():
     while True:
-        data = dsock.recv(rx.MAX_PACKETSIZE)
-        # parse packet and store it locally
-        packet = rx.unpack(data, natnetsdk_version)
-        if type(packet) is rx.SenderData:
-            natnetsdk_version = packet.natnet_version
+        packet = optritrack_packet_recv.get_last_packet()
         rh = optirx_utils.get_first_rigid_body(packet)
-
         if rh is not None:
-            params = get_rtscs_params_body(rh)
-            print(params)
-            sio.emit("rh", params)
+            p = get_rtscs_params_body(rh)
+            print(p)
+            sio.emit("rh", p)
+            eventlet.sleep(1)
 
-eventlet.spawn(start_sio)
-t_data = eventlet.spawn(get_optirx_data)
-t_data.wait()
+
+def deb(s):
+    while True:
+        s.emit("rh", [1, 2])
+        eventlet.sleep(1)
+        print("ok")
+
+
+#eventlet.spawn(motive_data)
+#eventlet.wsgi.server(eventlet.listen(('', 5000)), app)
+#motive_data()
+
+while True:
+    packet = optritrack_packet_recv.get_last_packet()
+    rh = optirx_utils.get_first_rigid_body(packet)
+    print(rh)
