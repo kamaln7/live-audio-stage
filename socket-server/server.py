@@ -2,6 +2,7 @@ import optirx as rx
 import optirx_utils
 import eventlet
 import socketio
+eventlet.monkey_patch()
 
 from utils import clip_value, remap_range, round_to_precision
 import math
@@ -32,7 +33,7 @@ DEFAULT_NOTE_DURATION_PRECISION = 0.125
 DEFAULT_OPTITRACK_RANGES_DICT = {
     'x': (-0.9, 1.5),
     'y': (-2.1, 1.2),
-    'z': (-0.1, 2),
+    'z': (-0.1, 1.7),
     'rh_roll': (-180, 180)
 }
 DEFAULT_RTSCS_PARAM_RANGES_DICT = {
@@ -40,7 +41,7 @@ DEFAULT_RTSCS_PARAM_RANGES_DICT = {
     #'sins': (0, 0.45),
     'frequency': (0, 7),
     'sins': (0, 7),
-    'amplitude': (0.1, 1),
+    'amplitude': (5, 200),
     'numerical_hint': (0, 1)
 }
 def transform_params(rh_position, rh_roll, lh_position=None):
