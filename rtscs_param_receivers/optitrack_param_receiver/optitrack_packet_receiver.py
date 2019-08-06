@@ -1,5 +1,5 @@
-#import threading
-from eventlet.green import threading
+import threading
+#from eventlet.green import threading
 import optirx as rx
 
 DEFAULT_MULTICAST_ADDRESS = '239.255.42.99'
@@ -7,7 +7,7 @@ DEFAULT_DATA_PORT = 1511
 DEFAULT_NATNETSDK_VERSION = (2, 8, 0, 0)
 
 
-class OptitrackPacketReceiver:
+class OptitrackPacketReceiver(threading.Thread):
     """
     Responsible for constantly receiving UDP packets form the OptiTrack system, parsing them to optirx objects,
     and storing them locally to make them available when needed.
@@ -16,7 +16,7 @@ class OptitrackPacketReceiver:
     """
     def __init__(self, server_ip_addr, natnetsdk_version=DEFAULT_NATNETSDK_VERSION,
                  multicast_addr=DEFAULT_MULTICAST_ADDRESS, data_port=DEFAULT_DATA_PORT):
-        #super(OptitrackPacketReceiver, self).__init__()
+        super(OptitrackPacketReceiver, self).__init__()
         self._natnetsdk_version = natnetsdk_version
         self._last_packet = None
         self._is_shutdown_request = False

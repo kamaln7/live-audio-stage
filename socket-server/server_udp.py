@@ -1,49 +1,35 @@
 import optirx as rx
 import optirx_utils
 import eventlet
-import socketio
+import math
+from oscpy.client import OSCClient
+from utils import clip_value, remap_range, round_to_precision
+import json
+
 eventlet.monkey_patch()
 
-from utils import clip_value, remap_range, round_to_precision
-import math
+UDP_IP = "192.168.43.186"
+UDP_PORT = 5000
 
-sio = socketio.Server(cors_allowed_origins=None)
-app = socketio.WSGIApp(sio)
-
-@sio.on('connect')
-def connect(sid, environ):
-    print('connect ', sid)
-    #eventlet.spawn(deb, sio)
-    #sio.emit("rh", [1, 2, 3])
-
-@sio.on('my message')
-def message(sid, data):
-    print('message ', data)
-
-@sio.on('disconnect')
-def disconnect(sid):
-    print('disconnect ', sid)
-
-
-def start_sio():
-    eventlet.wsgi.server(eventlet.listen(('', 5000)), app)
+max_udp_client = OSCClient(UDP_IP, UDP_PORT)
+def send_udp(message):
+    max_udp_client.send_message("/", message)
 
 DEFAULT_NOTE_DURATION_PRECISION = 0.125
 # rh roll implemented for future use
 DEFAULT_OPTITRACK_RANGES_DICT = {
-    'x': (-0.7, 0.5),
-    'y': (-0.7, 0.55),
-    'z': (-0.4, 1.0),
+    'x': (-0.88, 0.19),
+    'y': (-0.03, 0.49),
+    'z': (0.07, 1.3),
     'rh_roll': (-180, 180)
 }
 DEFAULT_RTSCS_PARAM_RANGES_DICT = {
-    #'frequency': (0, 700),
-    #'sins': (0, 0.45),
-    'frequency': (0, 7),
-    'sins': (0, 7),
-    'amplitude': (5, 200),
+    'tempo': (75, 170),
+    'senda': (0, 100),
+    'mastervol': (-55, 0),
     'numerical_hint': (0, 1)
 }
+
 def transform_params(rh_position, rh_roll, lh_position=None):
     """
     Transforms OptiTrack params into rtscs params
@@ -60,8 +46,8 @@ def transform_params(rh_position, rh_roll, lh_position=None):
     # y -> number of waves which define the complex wave.
     # z -> amplitude.
 
-    for i, mapped_pair in enumerate((('x', 'frequency'), ('y', 'sins'),
-                                     ('z', 'amplitude'), ('rh_roll', 'numerical_hint'))):
+    for i, mapped_pair in enumerate((('x', 'tempo'), ('y', 'senda'),
+                                     ('z', 'mastervol'), ('rh_roll', 'numerical_hint'))):
         source_low = DEFAULT_OPTITRACK_RANGES_DICT[mapped_pair[0]][0]
         source_high = DEFAULT_OPTITRACK_RANGES_DICT[mapped_pair[0]][1]
         destination_low = DEFAULT_RTSCS_PARAM_RANGES_DICT[mapped_pair[1]][0]
@@ -112,10 +98,18 @@ def get_optirx_data():
         rh = optirx_utils.get_first_rigid_body(packet)
 
         if rh is not None:
+            print(rh.position)
             params = get_rtscs_params_body(rh)
-            print(params)
-            sio.emit("rh", params)
+            if params != (0, 0, 1, 0, False):
+                print(params)
+                msg = [json.dumps({
+                    'tempo': params[0],
+                    'senda': params[1],
+                    'mastervol': params[2],
+                })]
+                send_udp(msg)
+                print(msg)
+                eventlet.sleep(0.1)
 
-eventlet.spawn(start_sio)
 t_data = eventlet.spawn(get_optirx_data)
 t_data.wait()
