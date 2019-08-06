@@ -1,4 +1,5 @@
 import threading
+#from eventlet.green import threading
 import optirx as rx
 
 DEFAULT_MULTICAST_ADDRESS = '239.255.42.99'
@@ -18,9 +19,7 @@ class OptitrackPacketReceiver(threading.Thread):
         super(OptitrackPacketReceiver, self).__init__()
         self._natnetsdk_version = natnetsdk_version
         self._last_packet = None
-        self._packet_lock = threading.Lock()
         self._is_shutdown_request = False
-        self._shutdown_lock = threading.Lock()
         # open UDP port to Optitrack server
         self._dsock = rx.mkdatasock(ip_address=server_ip_addr, multicast_address=multicast_addr, port=data_port)
 
@@ -28,10 +27,8 @@ class OptitrackPacketReceiver(threading.Thread):
         while not self._is_shutdown_requested():
             # receive UDP data packet from Optitrack server
             data = self._dsock.recv(rx.MAX_PACKETSIZE)
-            self._packet_lock.acquire()
             # parse packet and store it locally
             self._last_packet = rx.unpack(data, self._natnetsdk_version)
-            self._packet_lock.release()
             # update natnet sdk version to what Optitrack software says it is
             if type(self._last_packet) is rx.SenderData:
                 self._natnetsdk_version = self._last_packet.natnet_version
@@ -40,18 +37,12 @@ class OptitrackPacketReceiver(threading.Thread):
         """
         Returns the last packet recieved from the OptiTrack system as a optirx object
         """
-        self._packet_lock.acquire()
         last_packet = self._last_packet
-        self._packet_lock.release()
         return last_packet
 
     def _is_shutdown_requested(self):
-        self._shutdown_lock.acquire()
         is_shutdown_request = self._is_shutdown_request
-        self._shutdown_lock.release()
         return is_shutdown_request
 
     def shutdown(self):
-        self._shutdown_lock.acquire()
         self._is_shutdown_request = True
-        self._shutdown_lock.release()
