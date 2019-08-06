@@ -17,41 +17,68 @@ def send_udp(message):
 
 DEFAULT_NOTE_DURATION_PRECISION = 0.125
 # rh roll implemented for future use
-DEFAULT_OPTITRACK_RANGES_DICT = {
-    'x': (-0.88, 0.19),
-    'y': (-0.03, 0.49),
-    'z': (0.07, 1.3),
-    'rh_roll': (-180, 180)
+AXIS_RANGES = {
+    'x': (-1.286, 0.863),
+    'y': (-1.132, 1.059),
+    'z': (-0.979, 0.803),
+    'roll': (-180, 180)
 }
-DEFAULT_RTSCS_PARAM_RANGES_DICT = {
-    'tempo': (75, 170),
-    'senda': (0, 100),
-    'mastervol': (-55, 0),
-    'numerical_hint': (0, 1)
+MAP_RANGES = {
+    'x': (75, 170),
+    'y': (0, 100),
+    'z': (-55, 0),
+    'roll': (0, 1)
 }
 
-def transform_params(rh_position, rh_roll, lh_position=None):
+def get_zero_bounding_rect():
+    def axis_length(axis):
+        values = AXIS_RANGES[axis]
+        return abs(values[1] - values[0])
+
+
+    def axis_midpoint(axis):
+        values = AXIS_RANGES[axis]
+        return (values[1] + values[0]) / 2
+
+    offsets = {}
+    for axis in ["x", "y", "z"]:
+        length = axis_length(axis)
+        midpoint = axis_midpoint(axis)
+        offset = length * 0.1
+        offsets[axis] = (midpoint - offset, midpoint + offset)
+
+    return offsets
+
+ZERO_BOUNDING_RECT = get_zero_bounding_rect()
+print(ZERO_BOUNDING_RECT)
+
+def inside_zero_rect(p):
+    for i, axis in enumerate(["x", "y", "z"]):
+        rect = ZERO_BOUNDING_RECT[axis]
+        if p[i] < rect[0] or p[i] > rect[1]:
+            return False
+
+    return True
+
+def transform_params(position, roll):
     """
     Transforms OptiTrack params into rtscs params
-    :param rh_position: a (x, y, z) tuple holding the position of the right hand "rigid body"
-    :param rh_roll: roll angle in degrees of the right hand "rigid body"
-    :param lh_position: a (x, y, z) tuple holding the position of the left hand "rigid body"
+    :param position: a (x, y, z) tuple holding the position of the right hand "rigid body"
+    :param roll: roll angle in degrees of the right hand "rigid body"
     :return: rtscs params tuple as defined in BaseRtscsParamReceiver.get_rtscs_params()
     """
-    is_sustain = False  # TODO: derive is_sustain from distance between rh_position and lh_position
-    transformed_params = rh_position + [rh_roll, is_sustain]
+    transformed_params = position + [roll]
 
     # Remap rh position onto rtscs internal ranges
     # x -> frequency
     # y -> number of waves which define the complex wave.
     # z -> amplitude.
 
-    for i, mapped_pair in enumerate((('x', 'tempo'), ('y', 'senda'),
-                                     ('z', 'mastervol'), ('rh_roll', 'numerical_hint'))):
-        source_low = DEFAULT_OPTITRACK_RANGES_DICT[mapped_pair[0]][0]
-        source_high = DEFAULT_OPTITRACK_RANGES_DICT[mapped_pair[0]][1]
-        destination_low = DEFAULT_RTSCS_PARAM_RANGES_DICT[mapped_pair[1]][0]
-        destination_high = DEFAULT_RTSCS_PARAM_RANGES_DICT[mapped_pair[1]][1]
+    for i, n in enumerate(["x", "y", "z", "roll"]):
+        source_low = AXIS_RANGES[n][0]
+        source_high = AXIS_RANGES[n][1]
+        destination_low = MAP_RANGES[n][0]
+        destination_high = MAP_RANGES[n][1]
 
         # clip Optritrack param to the limits of its defined valid range
         transformed_params[i] = clip_value(transformed_params[i],
@@ -61,28 +88,31 @@ def transform_params(rh_position, rh_roll, lh_position=None):
                                             source_low, source_high,
                                             destination_low, destination_high)
 
-    # convert frequency and number of sins to int
-    for i in range(1):
-        transformed_params[i] = int(round(transformed_params[i]))
-
-    # round amplitude factor to precision
-    transformed_params[2] = round_to_precision(transformed_params[2], DEFAULT_NOTE_DURATION_PRECISION)
-
     return transformed_params
+
+def zero_range_params(p):
+    if inside_zero_rect(p):
+        print 'inside'
+        return [0, 0, 0]
+
+    return p
 
 def get_rtscs_params_body(rh):
     """
     Get input from the OptiTrack system streaming engine, transform the data to rtscs_params and return it.
     """
     if rh is None or rh.mrk_mean_error == 0:
-        return 0, 0, 1, 0, False
+        return 0, 0, 0, 0
 
     # mul by -1 to fix flipped coordinates if not fully compatible Motive calibration square
     rh_position = list(rh.position)  # map(lambda coordinate: -1 * coordinate, rh.position)
     # Convert right hand convention to left hand convention for Motive 1.73+ used with CS-200
-    rh_position[0] = -rh_position[0]
+    # rh_position[0] = -rh_position[0]
     # For convenience convert roll angle from radians to degrees
     rh_roll = math.degrees(optirx_utils.orientation2radians(rh.orientation)[0])
+
+    rh_position = zero_range_params(rh_position)
+    print(rh_position)
 
     return transform_params(rh_position, rh_roll)
 
@@ -98,9 +128,8 @@ def get_optirx_data():
         rh = optirx_utils.get_first_rigid_body(packet)
 
         if rh is not None:
-            print(rh.position)
             params = get_rtscs_params_body(rh)
-            if params != (0, 0, 1, 0, False):
+            if params != (0, 0, 0, 0):
                 print(params)
                 msg = [json.dumps({
                     'tempo': params[0],
@@ -108,7 +137,7 @@ def get_optirx_data():
                     'mastervol': params[2],
                 })]
                 send_udp(msg)
-                print(msg)
+                #print(msg)
                 eventlet.sleep(0.1)
 
 t_data = eventlet.spawn(get_optirx_data)

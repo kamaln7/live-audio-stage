@@ -43,10 +43,10 @@ class OptitrackParamReceiver(BaseRtscsParamReceiver):
                                           the system operator will be working, and the extreme angles of rotation that
                                           the operator's hand can be held and at which it is still
                                           detected by the cameras.
-                                          The dict is to be structured as DEFAULT_OPTITRACK_RANGES_DICT.
+                                          The dict is to be structured as AXIS_RANGES.
                                           Bounds can be measured using "measurement_util.py" in setup_utils
         :param rtscs_valid_ranges_dict:   A dict with desired ranges of rtscs params.
-                                          The dict is to be structured as DEFAULT_RTSCS_PARAM_RANGES_DICT.
+                                          The dict is to be structured as MAP_RANGES.
         :param note_duration_precision:   duration_factor precision to be rounded to
         """
         self._optirx_valid_ranges_dict = optitrx_valid_ranges_dict
