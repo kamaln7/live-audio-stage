@@ -4,7 +4,7 @@ import optirx as rx
 
 DEFAULT_MULTICAST_ADDRESS = '239.255.42.99'
 DEFAULT_DATA_PORT = 1511
-DEFAULT_NATNETSDK_VERSION = (2, 8, 0, 0)
+DEFAULT_NATNETSDK_VERSION = (2, 9, 0, 0)
 
 
 class OptitrackPacketReceiver(threading.Thread):

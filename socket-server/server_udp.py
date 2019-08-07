@@ -3,31 +3,30 @@ import optirx_utils
 import eventlet
 import math
 from oscpy.client import OSCClient
-from utils import clip_value, remap_range, round_to_precision
+from utils import clip_value, remap_range
 import json
 
-eventlet.monkey_patch()
+eventlet.monkey_patch(all=True)
 
-UDP_IP = "192.168.43.186"
+UDP_IP = "127.0.0.1"
 UDP_PORT = 5000
 
 max_udp_client = OSCClient(UDP_IP, UDP_PORT)
 def send_udp(message):
     max_udp_client.send_message("/", message)
 
-DEFAULT_NOTE_DURATION_PRECISION = 0.125
-# rh roll implemented for future use
 AXIS_RANGES = {
-    'x': (-1.286, 0.863),
-    'y': (-1.132, 1.059),
-    'z': (-0.979, 0.803),
+    'x': (-0.941, 0.972),
+    'y': (-1.312, 0.768),
+    'z': (-1.356, 0.779),
     'roll': (-180, 180)
 }
+
 MAP_RANGES = {
-    'x': (75, 170),
-    'y': (0, 100),
+    'x': (0, 220),
+    'y': (0, 1),
     'z': (-55, 0),
-    'roll': (0, 1)
+    'roll': (1, 400)
 }
 
 def get_zero_bounding_rect():
@@ -45,6 +44,7 @@ def get_zero_bounding_rect():
         length = axis_length(axis)
         midpoint = axis_midpoint(axis)
         offset = length * 0.1
+        print "axis=%s offset=%f length=%f" % (axis, offset, length)
         offsets[axis] = (midpoint - offset, midpoint + offset)
 
     return offsets
@@ -91,8 +91,9 @@ def transform_params(position, roll):
     return transformed_params
 
 def zero_range_params(p):
+    #print p
     if inside_zero_rect(p):
-        print 'inside'
+        #print 'inside'
         return [0, 0, 0]
 
     return p
@@ -107,18 +108,21 @@ def get_rtscs_params_body(rh):
     # mul by -1 to fix flipped coordinates if not fully compatible Motive calibration square
     rh_position = list(rh.position)  # map(lambda coordinate: -1 * coordinate, rh.position)
     # Convert right hand convention to left hand convention for Motive 1.73+ used with CS-200
-    # rh_position[0] = -rh_position[0]
+    rh_position[0] = -rh_position[0]
     # For convenience convert roll angle from radians to degrees
     rh_roll = math.degrees(optirx_utils.orientation2radians(rh.orientation)[0])
 
     rh_position = zero_range_params(rh_position)
-    print(rh_position)
+    #print(inside_zero_rect(rh_position), rh_position, rh_roll)
 
     return transform_params(rh_position, rh_roll)
 
+
+udp_msg_to_send = None
+
 def get_optirx_data():
     dsock = rx.mkdatasock(ip_address="127.0.0.1", multicast_address='239.255.42.99', port=1511)
-    natnetsdk_version = (2, 8, 0, 0)
+    natnetsdk_version = (2, 9, 0, 0)
     while True:
         data = dsock.recv(rx.MAX_PACKETSIZE)
         # parse packet and store it locally
@@ -130,15 +134,30 @@ def get_optirx_data():
         if rh is not None:
             params = get_rtscs_params_body(rh)
             if params != (0, 0, 0, 0):
-                print(params)
+                #print(params)
                 msg = [json.dumps({
-                    'tempo': params[0],
+                    'tempo': round(params[1], 2),
                     'senda': params[1],
                     'mastervol': params[2],
                 })]
-                send_udp(msg)
+                global udp_msg_to_send
+                udp_msg_to_send = msg
                 #print(msg)
-                eventlet.sleep(0.1)
+                #eventlet.sleep(0.1)
 
+def send_udp_interval():
+    while True:
+        global udp_msg_to_send
+        if udp_msg_to_send != None:
+            print "sending %s" % udp_msg_to_send
+            send_udp(udp_msg_to_send)
+            udp_msg_to_send = None
+
+        eventlet.sleep(0.05)
+
+
+eventlet.spawn(send_udp_interval)
 t_data = eventlet.spawn(get_optirx_data)
+
+
 t_data.wait()
