@@ -129,16 +129,20 @@ def get_optirx_data():
         packet = rx.unpack(data, natnetsdk_version)
         if type(packet) is rx.SenderData:
             natnetsdk_version = packet.natnet_version
-        rh = optirx_utils.get_first_rigid_body(packet)
+        bodies = optirx_utils.get_all_rigid_bodies(packet)
+        if len(bodies) == 0:
+            continue
 
-        if rh is not None:
-            params = get_rtscs_params_body(rh)
-            if params != (0, 0, 0, 0):
-                #print(params)
+        b1 = bodies[0]
+        b2 = bodies[1]
+        if b1 is not None and b2 is not None:
+            params1 = get_rtscs_params_body(b1)
+            params2 = get_rtscs_params_body(b2)
+            if params1 != (0, 0, 0, 0) and params2 != (0, 0, 0, 0):
                 msg = [json.dumps({
-                    'tempo': round(params[1], 2),
-                    'senda': params[1],
-                    'mastervol': params[2],
+                    'tempo': round(params1[1], 2),
+                    'params1': params1,
+                    'params2': params2,
                 })]
                 global udp_msg_to_send
                 udp_msg_to_send = msg
