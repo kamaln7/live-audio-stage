@@ -12,8 +12,11 @@ UDP_IP = "127.0.0.1"
 UDP_PORT = 5000
 
 max_udp_client = OSCClient(UDP_IP, UDP_PORT)
+
+
 def send_udp(message):
     max_udp_client.send_message("/", message)
+
 
 AXIS_RANGES = {
     'x': (-0.941, 0.972),
@@ -22,35 +25,32 @@ AXIS_RANGES = {
     'roll': (-180, 180)
 }
 
-MAP_RANGES = {
-    'x': (0, 220),
-    'y': (0, 1),
-    'z': (-55, 0),
-    'roll': (1, 400)
-}
+
+def axis_length(axis):
+    values = AXIS_RANGES[axis]
+    return abs(values[1] - values[0])
+
+
+def axis_midpoint(axis):
+    values = AXIS_RANGES[axis]
+    return (values[1] + values[0]) / 2
+
 
 def get_zero_bounding_rect():
-    def axis_length(axis):
-        values = AXIS_RANGES[axis]
-        return abs(values[1] - values[0])
-
-
-    def axis_midpoint(axis):
-        values = AXIS_RANGES[axis]
-        return (values[1] + values[0]) / 2
-
     offsets = {}
     for axis in ["x", "y", "z"]:
         length = axis_length(axis)
         midpoint = axis_midpoint(axis)
-        offset = length * 0.1
-        print "axis=%s offset=%f length=%f" % (axis, offset, length)
+        offset = length * 0.15
+        print "[zero] axis=%s offset=%f length=%f" % (axis, offset, length)
         offsets[axis] = (midpoint - offset, midpoint + offset)
 
     return offsets
 
+
 ZERO_BOUNDING_RECT = get_zero_bounding_rect()
 print(ZERO_BOUNDING_RECT)
+
 
 def inside_zero_rect(p):
     for i, axis in enumerate(["x", "y", "z"]):
@@ -60,43 +60,32 @@ def inside_zero_rect(p):
 
     return True
 
-def transform_params(position, roll):
-    """
-    Transforms OptiTrack params into rtscs params
-    :param position: a (x, y, z) tuple holding the position of the right hand "rigid body"
-    :param roll: roll angle in degrees of the right hand "rigid body"
-    :return: rtscs params tuple as defined in BaseRtscsParamReceiver.get_rtscs_params()
-    """
-    transformed_params = position + [roll]
 
-    # Remap rh position onto rtscs internal ranges
-    # x -> frequency
-    # y -> number of waves which define the complex wave.
-    # z -> amplitude.
+def remap_and_clip(source_low, source_high, destination_low, destination_high, value):
+    # clip Optritrack param to the limits of its defined valid range
+    value = clip_value(value, source_low, source_high)
+    # translate Optritrack param to rtscs param
+    value = remap_range(value,
+                            source_low, source_high,
+                            destination_low, destination_high)
 
-    for i, n in enumerate(["x", "y", "z", "roll"]):
-        source_low = AXIS_RANGES[n][0]
-        source_high = AXIS_RANGES[n][1]
-        destination_low = MAP_RANGES[n][0]
-        destination_high = MAP_RANGES[n][1]
+    return value
 
-        # clip Optritrack param to the limits of its defined valid range
-        transformed_params[i] = clip_value(transformed_params[i],
-                                           source_low, source_high)
-        # translate Optritrack param to rtscs param
-        transformed_params[i] = remap_range(transformed_params[i],
-                                            source_low, source_high,
-                                            destination_low, destination_high)
 
-    return transformed_params
+def remap_value_of_axis_range(axis, destination_low, destination_high, value):
+    source_low = AXIS_RANGES[axis][0]
+    source_high = AXIS_RANGES[axis][1]
+
+    return remap_and_clip(source_low, source_high, destination_low, destination_high, value)
+
 
 def zero_range_params(p):
-    #print p
     if inside_zero_rect(p):
-        #print 'inside'
-        return [0, 0, 0]
+        print "inside"
+        return [0.0, 0.0, 0.0]
 
     return p
+
 
 def get_rtscs_params_body(rh):
     """
@@ -113,12 +102,15 @@ def get_rtscs_params_body(rh):
     rh_roll = math.degrees(optirx_utils.orientation2radians(rh.orientation)[0])
 
     rh_position = zero_range_params(rh_position)
-    #print(inside_zero_rect(rh_position), rh_position, rh_roll)
 
-    return transform_params(rh_position, rh_roll)
+    return rh_position + [rh_roll]
 
 
 udp_msg_to_send = None
+
+
+xAxisLength = axis_length("x")
+
 
 def get_optirx_data():
     dsock = rx.mkdatasock(ip_address="127.0.0.1", multicast_address='239.255.42.99', port=1511)
@@ -138,16 +130,18 @@ def get_optirx_data():
         if b1 is not None and b2 is not None:
             params1 = get_rtscs_params_body(b1)
             params2 = get_rtscs_params_body(b2)
+
             if params1 != (0, 0, 0, 0) and params2 != (0, 0, 0, 0):
+                xDistance = params1[0] - params2[0]
                 msg = [json.dumps({
-                    'tempo': round(params1[1], 2),
-                    'params1': params1,
-                    'params2': params2,
+                    'drumVolume': remap_value_of_axis_range("y", 0.0, 1.0, params1[1]),
+                    'groupCVolume': remap_value_of_axis_range("y", 0.0, 1.0, params2[1]),
+                    'tempo': int(remap_and_clip(-xAxisLength, xAxisLength, 60, 132, xDistance))
                 })]
+
                 global udp_msg_to_send
                 udp_msg_to_send = msg
-                #print(msg)
-                #eventlet.sleep(0.1)
+
 
 def send_udp_interval():
     while True:
