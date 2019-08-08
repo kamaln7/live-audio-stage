@@ -81,7 +81,7 @@ def remap_value_of_axis_range(axis, destination_low, destination_high, value):
 
 def zero_range_params(p):
     if inside_zero_rect(p):
-        print "inside"
+        #print "inside"
         return [0.0, 0.0, 0.0]
 
     return p
@@ -110,6 +110,7 @@ udp_msg_to_send = None
 
 
 xAxisLength = axis_length("x")
+zAxisMidpoint = axis_midpoint("z") + axis_length("z")/4
 
 
 def get_optirx_data():
@@ -133,10 +134,12 @@ def get_optirx_data():
 
             if params1 != (0, 0, 0, 0) and params2 != (0, 0, 0, 0):
                 xDistance = params1[0] - params2[0]
+                berlinPos = params1[2]
                 msg = [json.dumps({
                     'drumVolume': remap_value_of_axis_range("y", 0.0, 1.0, params1[1]),
                     'groupCVolume': remap_value_of_axis_range("y", 0.0, 1.0, params2[1]),
-                    'tempo': int(remap_and_clip(-xAxisLength, xAxisLength, 60, 132, xDistance))
+                    'tempo': int(remap_and_clip(-xAxisLength, xAxisLength, 60, 132, xDistance)),
+                    'berlin': 0 if berlinPos < zAxisMidpoint else int(remap_value_of_axis_range("z", 0, 50, params1[2]))
                 })]
 
                 global udp_msg_to_send
