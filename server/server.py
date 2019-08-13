@@ -3,27 +3,17 @@ import optirx_utils
 import eventlet
 import math
 from oscpy.client import OSCClient
-from utils import clip_value, remap_range
+from utils import clip_value, remap_range, make_motive_sock, read_motive_packet
+from config import motiveConfig, abletonMaxConfig, AXIS_RANGES
 import json
 
 eventlet.monkey_patch(all=True)
 
-UDP_IP = "127.0.0.1"
-UDP_PORT = 5000
-
-max_udp_client = OSCClient(UDP_IP, UDP_PORT)
+max_udp_client = OSCClient(abletonMaxConfig['ip'], abletonMaxConfig['port'])
 
 
 def send_udp(message):
     max_udp_client.send_message("/", message)
-
-
-AXIS_RANGES = {
-    'x': (-0.941, 0.972),
-    'y': (-1.312, 0.768),
-    'z': (-1.356, 0.779),
-    'roll': (-180, 180)
-}
 
 
 def axis_length(axis):
@@ -66,8 +56,8 @@ def remap_and_clip(source_low, source_high, destination_low, destination_high, v
     value = clip_value(value, source_low, source_high)
     # translate Optritrack param to rtscs param
     value = remap_range(value,
-                            source_low, source_high,
-                            destination_low, destination_high)
+                        source_low, source_high,
+                        destination_low, destination_high)
 
     return value
 
@@ -95,7 +85,8 @@ def get_rtscs_params_body(rh):
         return 0, 0, 0, 0
 
     # mul by -1 to fix flipped coordinates if not fully compatible Motive calibration square
-    rh_position = list(rh.position)  # map(lambda coordinate: -1 * coordinate, rh.position)
+    # map(lambda coordinate: -1 * coordinate, rh.position)
+    rh_position = list(rh.position)
     # Convert right hand convention to left hand convention for Motive 1.73+ used with CS-200
     rh_position[0] = -rh_position[0]
     # For convenience convert roll angle from radians to degrees
@@ -107,21 +98,14 @@ def get_rtscs_params_body(rh):
 
 
 udp_msg_to_send = None
-
-
 xAxisLength = axis_length("x")
 zAxisMidpoint = axis_midpoint("z") + axis_length("z")/4
 
 
 def get_optirx_data():
-    dsock = rx.mkdatasock(ip_address="127.0.0.1", multicast_address='239.255.42.99', port=1511)
-    natnetsdk_version = (2, 9, 0, 0)
+    sock = make_motive_sock()
     while True:
-        data = dsock.recv(rx.MAX_PACKETSIZE)
-        # parse packet and store it locally
-        packet = rx.unpack(data, natnetsdk_version)
-        if type(packet) is rx.SenderData:
-            natnetsdk_version = packet.natnet_version
+        packet = read_motive_packet(sock)
         bodies = optirx_utils.get_all_rigid_bodies(packet)
         if len(bodies) == 0:
             continue
@@ -139,7 +123,7 @@ def get_optirx_data():
                     'drumVolume': remap_value_of_axis_range("y", 0.0, 1.0, params1[1]),
                     'groupCVolume': remap_value_of_axis_range("y", 0.0, 1.0, params2[1]),
                     'tempo': int(remap_and_clip(-xAxisLength, xAxisLength, 60, 132, xDistance)),
-                    'berlin': 0 if berlinPos < zAxisMidpoint else int(remap_value_of_axis_range("z", 0, 50, params1[2]))
+                    'berlin': 0 if berlinPos < zAxisMidpoint else int(remap_and_clip(zAxisMidpoint, AXIS_RANGES['z'][1], 0, 50, params1[2]))
                 })]
 
                 global udp_msg_to_send
