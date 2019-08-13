@@ -1,5 +1,6 @@
 from config import motiveConfig
 import optirx as rx
+import math
 
 
 def make_motive_sock():
@@ -41,9 +42,9 @@ def dicts_have_same_keys(dict1, dict2):
     return (set(dict1.keys()) - set(dict2.keys())) == set([])
 
 
-def display_shutdown_prompt(shutdown_token='q'):
-    shutdown_msg = 'Enter "{}" to shutdown the system and end the session:'.format(
-        shutdown_token)
-    print shutdown_msg
-    while raw_input().lower() != shutdown_token:
-        print 'Invalid input. ' + shutdown_msg
+def three_dim_dist(x1, y1, z1, x2, y2, z2):
+    return math.sqrt(
+        (x2 - x1)**2
+        + (y2 - y1)**2
+        + (z2 - z1)**2
+    )

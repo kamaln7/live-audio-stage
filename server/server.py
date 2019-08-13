@@ -3,7 +3,7 @@ import optirx_utils
 import eventlet
 import math
 from oscpy.client import OSCClient
-from utils import clip_value, remap_range, make_motive_sock, read_motive_packet
+from utils import clip_value, remap_range, make_motive_sock, read_motive_packet, three_dim_dist
 from config import motiveConfig, abletonMaxConfig, AXIS_RANGES
 import json
 
@@ -98,8 +98,12 @@ def get_rtscs_params_body(rh):
 
 
 udp_msg_to_send = None
-xAxisLength = axis_length("x")
-zAxisMidpoint = axis_midpoint("z") + axis_length("z")/4
+xAxisLength = axis_length("x")/2
+zAxisMidpoint = axis_midpoint("z")
+distMax = three_dim_dist(
+    AXIS_RANGES['x'][0], AXIS_RANGES['y'][0], AXIS_RANGES['z'][0],
+    AXIS_RANGES['x'][1], AXIS_RANGES['y'][1], AXIS_RANGES['z'][1]
+)
 
 
 def get_optirx_data():
@@ -117,13 +121,20 @@ def get_optirx_data():
             params2 = get_rtscs_params_body(b2)
 
             if params1 != (0, 0, 0, 0) and params2 != (0, 0, 0, 0):
-                xDistance = params1[0] - params2[0]
+                body_dist = three_dim_dist(
+                    params1[0], params1[1], params1[2],
+                    params2[0], params2[1], params2[2]
+                )
+
                 berlinPos = params1[2]
+                if params1[0] > params2[0]:
+                    body_dist = -body_dist
+
                 msg = [json.dumps({
-                    'drumVolume': remap_value_of_axis_range("y", 0.0, 1.0, params1[1]),
-                    'groupCVolume': remap_value_of_axis_range("y", 0.0, 1.0, params2[1]),
-                    'tempo': int(remap_and_clip(-xAxisLength, xAxisLength, 60, 132, xDistance)),
-                    'berlin': 0 if berlinPos < zAxisMidpoint else int(remap_and_clip(zAxisMidpoint, AXIS_RANGES['z'][1], 0, 50, params1[2]))
+                    'drumVolume': remap_value_of_axis_range("y", 0.10, 0.8, params1[1]),
+                    'groupCVolume': remap_value_of_axis_range("y", 0.10, 0.8, params2[1]),
+                    'tempo': int(remap_and_clip(-distMax, distMax, 60, 132, body_dist)),
+                    'berlin': remap_and_clip(zAxisMidpoint, AXIS_RANGES['z'][1]*2, 0, 0.5, berlinPos)
                 })]
 
                 global udp_msg_to_send
