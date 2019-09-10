@@ -17,6 +17,8 @@ Mentors:
 
 - Fares Fares
 
+GitHub project: [https://github.com/kamaln7/live-audio-stage](https://github.com/kamaln7/live-audio-stage)
+
 ## Demo
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/EFrwtNCXJdY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -55,10 +57,6 @@ The end result is an audio composition that is directly affected and in a way co
    4. Turn on Data Streaming on the local loopback interface
 2. Open Ableton Live
    1. Import the Ableton project. You might need to give Ableton the path to the Max plugin the "Live Audio Stage Control"
-   2. In track A, find the Live Audio Stage Control effect. Map:
-      1. First line to Tempo
-      2. Second line to
-      3. Third line to
 3. Open the project in PyCharm
    1. Place the gloves in the center of the room. Start the "Measurement" program and move the glove across the edges of the room in a cuboid shape. This is important so that the program can know the minimum/maximum values. Once done, stop the program and copy the output into `config.py`.
    2. Start the "LAS" program. This will connect to both Motive and Ableton.
